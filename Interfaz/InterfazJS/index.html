@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>USART CONTROL LED R-G-B</title>
+  <!-- Bootstrap -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #1a1a2e, #16213e, #1a1a2e);
+      color: #e2e2e2;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+    .card {
+      background-color: rgba(0, 0, 0, 0.4);
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .header-container {
+      background: linear-gradient(90deg, #ff4d4d, #5e60ce);
+      padding: 15px 0;
+      border-radius: 10px;
+      margin-bottom: 25px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    .btn-primary {
+      background-color: #4361ee;
+      border: none;
+      box-shadow: 0 4px 10px rgba(67, 97, 238, 0.3);
+    }
+    .btn-primary:hover {
+      background-color: #3b28cc;
+      transform: translateY(-2px);
+      transition: all 0.3s;
+    }
+    .btn-success {
+      background-color: #4cc9f0;
+      border: none;
+      box-shadow: 0 4px 10px rgba(76, 201, 240, 0.3);
+    }
+    .btn-success:hover {
+      background-color: #3a86ff;
+      transform: translateY(-2px);
+      transition: all 0.3s;
+    }
+    .led-btn {
+      width: 100%;
+      margin: 5px 0;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+    .led-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    }
+    .btn-red {
+      background-color: #d90429;
+      border-color: #ef233c;
+    }
+    .btn-red:hover {
+      background-color: #ef233c;
+      border-color: #d90429;
+    }
+    .btn-green {
+      background-color: #2a9d8f;
+      border-color: #1a7a6d;
+    }
+    .btn-green:hover {
+      background-color: #1a7a6d;
+      border-color: #2a9d8f;
+    }
+    .btn-blue {
+      background-color: #4361ee;
+      border-color: #3a0ca3;
+    }
+    .btn-blue:hover {
+      background-color: #3a0ca3;
+      border-color: #4361ee;
+    }
+    .btn-all {
+      background-color: #7209b7;
+      border-color: #560bad;
+    }
+    .btn-all:hover {
+      background-color: #560bad;
+      border-color: #7209b7;
+    }
+    #receivedData {
+      background-color: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #4cc9f0;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+      height: 200px;
+      overflow-y: auto;
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 8px;
+    }
+    .console-timestamp {
+      color: #888;
+      font-size: 0.8em;
+      margin-right: 8px;
+    }
+    .button-state {
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .state-0 {
+      background-color: #d90429;
+      color: white;
+    }
+    .state-1 {
+      background-color: #2a9d8f;
+      color: white;
+    }
+    .connection-status {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background-color: #d90429;
+      margin-right: 10px;
+      transition: background-color 0.3s;
+    }
+    .connected {
+      background-color: #2a9d8f;
+    }
+    /* Add styling for mode selector */
+    .mode-selector {
+      margin-top: 20px;
+      text-align: center;
+    }
+    
+    .mode-btn {
+      margin: 0 5px;
+      min-width: 40px;
+      font-weight: bold;
+    }
+    
+    /* Add pulse animation for active LEDs */
+    @keyframes ledPulse {
+      0% { box-shadow: 0 0 10px rgba(255,255,255,0.5); }
+      50% { box-shadow: 0 0 20px rgba(255,255,255,0.8); }
+      100% { box-shadow: 0 0 10px rgba(255,255,255,0.5); }
+    }
+    
+    .led-active {
+      animation: ledPulse 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <div class="header-container text-center">
+      <h1 class="display-5 fw-bold"><i class="fas fa-microchip me-2"></i>USART CONTROL LED R-G-B</h1>
+    </div>
+    
+    <div class="row">
+      <div class="col-lg-6 mb-4">
+        <div class="card p-4 h-100">
+          <h4 class="mb-3"><i class="fas fa-plug me-2"></i>Conexión y Control</h4>
+          
+          <!-- Estado de Conexión -->
+          <div class="d-flex align-items-center mb-3">
+            <div id="connectionIndicator" class="connection-status"></div>
+            <span id="connectionStatus">Desconectado</span>
+          </div>
+          
+          <!-- Botón para Conectar -->
+          <button id="connectBtn" class="btn btn-primary mb-4">
+            <i class="fas fa-link me-2"></i>Conectar Puerto Serial
+          </button>
+          
+          <!-- Controls for RGB LEDs - Reordered to match Red, Blue, Green sequence -->
+          <div class="row mb-3">
+            <h5><i class="fas fa-lightbulb me-2"></i>Control de LED RGB</h5>
+            
+            <!-- Red LED controls -->
+            <div class="col-md-4 mb-2">
+              <button id="redOnBtn" class="btn btn-danger led-btn mb-2">
+                <i class="fas fa-circle me-2"></i>Rojo ON
+              </button>
+              <button id="redOffBtn" class="btn btn-outline-danger led-btn">
+                <i class="fas fa-times-circle me-2"></i>Rojo OFF
+              </button>
+            </div>
+            
+            <!-- Blue LED controls -->
+            <div class="col-md-4 mb-2">
+              <button id="blueOnBtn" class="btn btn-primary led-btn mb-2">
+                <i class="fas fa-circle me-2"></i>Azul ON
+              </button>
+              <button id="blueOffBtn" class="btn btn-outline-primary led-btn">
+                <i class="fas fa-times-circle me-2"></i>Azul OFF
+              </button>
+            </div>
+            
+            <!-- Green LED controls -->
+            <div class="col-md-4 mb-2">
+              <button id="greenOnBtn" class="btn btn-success led-btn mb-2">
+                <i class="fas fa-circle me-2"></i>Verde ON
+              </button>
+              <button id="greenOffBtn" class="btn btn-outline-success led-btn">
+                <i class="fas fa-times-circle me-2"></i>Verde OFF
+              </button>
+            </div>
+            
+            <!-- All LEDs Controls -->
+            <div class="col-md-12 mt-3">
+              <div class="row">
+                <div class="col-md-6">
+                  <button id="allOnBtn" class="btn btn-warning led-btn">
+                    <i class="fas fa-lightbulb me-2"></i>Todos ON
+                  </button>
+                </div>
+                <div class="col-md-6">
+                  <button id="allOffBtn" class="btn btn-outline-warning led-btn">
+                    <i class="fas fa-power-off me-2"></i>Todos OFF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Mode Selection Buttons -->
+          <div class="mode-selector mb-3">
+            <h5><i class="fas fa-sliders-h me-2"></i>Selección de Modo</h5>
+            <div class="btn-group" role="group">
+              <button class="btn btn-danger mode-btn" data-mode="I" title="Modo 1 - LED Rojo">I</button>
+              <button class="btn btn-primary mode-btn" data-mode="II" title="Modo 2 - LED Azul">II</button>
+              <button class="btn btn-success mode-btn" data-mode="III" title="Modo 3 - LED Verde">III</button>
+              <button class="btn btn-warning mode-btn" data-mode="IV" title="Modo 4 - Todos los LEDs">IV</button>
+              <button class="btn btn-secondary mode-btn" data-mode="O" title="Modo 0 - Ningún LED">O</button>
+            </div>
+            <div class="mt-2">
+              <small class="text-muted">I: Rojo (Modo 1), II: Azul (Modo 2), III: Verde (Modo 3), IV: Todos (Modo 4), O: Ninguno (Modo 0)</small>
+            </div>
+          </div>
+          
+          <!-- Carácter personalizado -->
+          <div class="mb-3 mt-4">
+            <h5><i class="fas fa-keyboard me-2"></i>Enviar Comando</h5>
+            <div class="input-group">
+              <select id="commandSelect" class="form-select" onchange="document.getElementById('charToSend').value=this.value">
+                <option value="">Seleccione un comando...</option>
+                <optgroup label="Control de LEDs">
+                  <option value="r">r - Encender LED Rojo</option>
+                  <option value="R">R - Apagar LED Rojo</option>
+                  <option value="g">g - Encender LED Verde</option>
+                  <option value="G">G - Apagar LED Verde</option>
+                  <option value="b">b - Encender LED Azul</option>
+                  <option value="B">B - Apagar LED Azul</option>
+                  <option value="a">a - Encender Todos los LEDs</option>
+                  <option value="A">A - Apagar Todos los LEDs</option>
+                </optgroup>
+                <optgroup label="Modos">
+                  <option value="1">1 - Modo 1: LED Rojo (I)</option>
+                  <option value="2">2 - Modo 2: LED Azul (II)</option>
+                  <option value="3">3 - Modo 3: LED Verde (III)</option>
+                  <option value="4">4 - Modo 4: Todos los LEDs (IV)</option>
+                  <option value="0">0 - Modo 0: Ningún LED (O)</option>
+                </optgroup>
+              </select>
+              <input type="text" id="charToSend" class="form-control" placeholder="Ej: 1">
+              <button id="sendBtn" class="btn btn-success">
+                <i class="fas fa-paper-plane me-2"></i>Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Console Output -->
+      <div class="col-lg-6">
+        <div class="card p-4 h-100">
+          <h4 class="mb-3"><i class="fas fa-terminal me-2"></i>Consola Serial</h4>
+          <div class="d-flex justify-content-between mb-2">
+            <button id="clearConsoleBtn" class="btn btn-sm btn-outline-danger">
+              <i class="fas fa-trash-alt me-1"></i>Limpiar
+            </button>
+            <span id="msgCounter" class="badge bg-info">0 mensajes</span>
+          </div>
+          <div id="receivedData">
+            <!-- Aquí se mostrarán los datos recibidos -->
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="autoScrollToggle" checked>
+              <label class="form-check-label" for="autoScrollToggle">Auto-scroll</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Visualization of LEDs - Reordered to match the sequence on the microcontroller -->
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card p-4">
+          <h4 class="mb-3"><i class="fas fa-eye me-2"></i>Visualización de LEDs</h4>
+          <div class="d-flex justify-content-around">
+            <div class="text-center">
+              <div id="redLedVisual" style="width:50px; height:50px; border-radius:50%; background-color:#333; border:2px solid #f00; margin:0 auto; box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>
+              <p class="mt-2">LED Rojo</p>
+              <span class="badge bg-danger">Modo I</span>
+            </div>
+            <div class="text-center">
+              <div id="blueLedVisual" style="width:50px; height:50px; border-radius:50%; background-color:#333; border:2px solid #00f; margin:0 auto; box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>
+              <p class="mt-2">LED Azul</p>
+              <span class="badge bg-primary">Modo II (2)</span>
+            </div>
+            <div class="text-center">
+              <div id="greenLedVisual" style="width:50px; height:50px; border-radius:50%; background-color:#333; border:2px solid #0f0; margin:0 auto; box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>
+              <p class="mt-2">LED Verde</p>
+              <span class="badge bg-success">Modo III (3)</span>
+            </div>
+          </div>
+          
+          <!-- Mode legend -->
+          <div class="text-center mt-4">
+            <p><strong>Modos de funcionamiento:</strong></p>
+            <span class="badge bg-danger me-2">Modo 1 (I): LED Rojo</span>
+            <span class="badge bg-primary me-2">Modo 2 (II): LED Azul</span>
+            <span class="badge bg-success me-2">Modo 3 (III): LED Verde</span>
+            <span class="badge bg-warning me-2">Modo 4 (IV): Todos los LEDs</span>
+            <span class="badge bg-secondary">Modo 0 (O): Ningún LED</span>
+          </div>
+          
+          <!-- Current Mode indicator -->
+          <div class="text-center mt-3 p-2 bg-dark rounded">
+            <span>Modo actual: </span>
+            <span id="currentModeDisplay" class="fs-4 fw-bold">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="mt-4 text-center text-white py-3"></footer>
+      <p>Proyecto de Universidad Militar Nueva Granada - STM32F767 & Web Serial API</p>
+    </footer>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Script principal -->
+  <script src="script.js"></script>
+</body>
+</html>
