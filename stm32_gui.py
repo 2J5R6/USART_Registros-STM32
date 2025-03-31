@@ -24,7 +24,7 @@ class SerialThread(QThread):
 
 class LedControl(QMainWindow):
     def __init__(self):
-        super().__init__()
+        super().__init__() 
         self.setWindowTitle("UART LED PYTHON GUI CONTROL")
         self.setWindowIcon(QIcon("Utils/icon.png"))
         self.setMinimumSize(1000, 700)
