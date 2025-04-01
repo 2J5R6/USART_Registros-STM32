@@ -24,7 +24,7 @@ class SerialThread(QThread):
 
 class LedControl(QMainWindow):
     def __init__(self):
-        super().__init__() 
+        super().__init__()
         self.setWindowTitle("UART LED PYTHON GUI CONTROL")
         self.setWindowIcon(QIcon("Utils/icon.png"))
         self.setMinimumSize(1000, 700)
@@ -91,13 +91,13 @@ class LedControl(QMainWindow):
         # Header with logo
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
-        
+
         # Logo - Moved to left side
         logo_label = QLabel()
         logo_pixmap = self.load_and_resize_image("Utils/image.png", 200, 200)
         logo_label.setPixmap(logo_pixmap)
         logo_label.setStyleSheet("background: transparent;")
-        
+
         # Title - Now after logo
         header = QLabel("GRUPO MICROS MEC-C")
         header.setStyleSheet("""
@@ -109,11 +109,11 @@ class LedControl(QMainWindow):
             font-weight: bold;
         """)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         # Changed order and alignment
         header_layout.addWidget(logo_label, stretch=1, alignment=Qt.AlignmentFlag.AlignLeft)
         header_layout.addWidget(header, stretch=4)
-        
+
         main_layout.addWidget(header_container)
 
         # Main content container
@@ -121,28 +121,28 @@ class LedControl(QMainWindow):
 
         # Left panel - Controls
         left_panel = QVBoxLayout()
-        
+
         # Connection group with status indicator
         connection_group = QGroupBox("Connection Status")
         conn_layout = QVBoxLayout()
-        
+
         status_layout = QHBoxLayout()
         self.status_indicator = QLabel("●")
         self.status_indicator.setStyleSheet("color: #d90429; font-size: 20px;")
         self.status_label = QLabel("Disconnected")
         status_layout.addWidget(self.status_indicator)
         status_layout.addWidget(self.status_label)
-        
+
         conn_controls = QHBoxLayout()
         self.port_combo = QComboBox()
         self.refresh_ports()
         self.connect_button = QPushButton("Connect")
         self.connect_button.setStyleSheet("background-color: #4361ee;")
         self.connect_button.clicked.connect(self.toggle_connection)
-        
+
         conn_controls.addWidget(self.port_combo)
         conn_controls.addWidget(self.connect_button)
-        
+
         conn_layout.addLayout(status_layout)
         conn_layout.addLayout(conn_controls)
         connection_group.setLayout(conn_layout)
@@ -151,16 +151,16 @@ class LedControl(QMainWindow):
         # LED Controls with improved styling
         led_group = QGroupBox("LED Control")
         led_layout = QVBoxLayout()
-        
+
         # Create LED controls with better visual style
         for color, style in [("Red", "#d90429"), ("Blue", "#4361ee"), ("Green", "#2a9d8f")]:
             layout = QHBoxLayout()
             on_btn = QPushButton(f"{color} ON")
             off_btn = QPushButton(f"{color} OFF")
-            
+
             on_btn.setStyleSheet(f"background-color: {style}; color: white;")
             off_btn.setStyleSheet(f"background-color: transparent; color: {style}; border: 2px solid {style}")
-            
+
             layout.addWidget(on_btn)
             layout.addWidget(off_btn)
             led_layout.addLayout(layout)
@@ -174,17 +174,17 @@ class LedControl(QMainWindow):
         all_layout.addWidget(all_on)
         all_layout.addWidget(all_off)
         led_layout.addLayout(all_layout)
-        
+
         led_group.setLayout(led_layout)
         left_panel.addWidget(led_group)
 
         # Mode Control with Roman numerals
         mode_group = QGroupBox("Mode Selection")
         mode_layout = QHBoxLayout()
-        
+
         mode_labels = ["O", "I", "II", "III", "IV"]
         mode_colors = ["#6c757d", "#dc3545", "#0d6efd", "#198754", "#ffc107"]
-        
+
         for i, (label, color) in enumerate(zip(mode_labels, mode_colors)):
             btn = QPushButton(label)
             btn.setStyleSheet(f"""
@@ -199,18 +199,18 @@ class LedControl(QMainWindow):
             """)
             btn.clicked.connect(lambda checked, m=i: self.send_command(str(m)))
             mode_layout.addWidget(btn)
-        
+
         mode_group.setLayout(mode_layout)
         left_panel.addWidget(mode_group)
 
         # Add Command Sending Section
         command_group = QGroupBox("Send Command")
         command_layout = QVBoxLayout()
-        
+
         # Command selector combo box
         self.command_combo = QComboBox()
         self.command_combo.addItem("Select a command...")
-        
+
         # LED Control Commands
         self.command_combo.addItem("r - Turn Red LED ON")
         self.command_combo.addItem("R - Turn Red LED OFF")
@@ -220,14 +220,14 @@ class LedControl(QMainWindow):
         self.command_combo.addItem("B - Turn Blue LED OFF")
         self.command_combo.addItem("a - Turn All LEDs ON")
         self.command_combo.addItem("A - Turn All LEDs OFF")
-        
+
         # Mode Commands
         self.command_combo.addItem("1 - Mode 1: Red LED")
         self.command_combo.addItem("2 - Mode 2: Blue LED")
         self.command_combo.addItem("3 - Mode 3: Green LED")
         self.command_combo.addItem("4 - Mode 4: All LEDs")
         self.command_combo.addItem("0 - Mode 0: No LEDs")
-        
+
         # Input layout
         input_layout = QHBoxLayout()
         self.command_input = QLineEdit()
@@ -235,17 +235,17 @@ class LedControl(QMainWindow):
         send_button = QPushButton("Send")
         send_button.setStyleSheet("background-color: #4cc9f0;")
         send_button.clicked.connect(self.send_custom_command)
-        
+
         # Connect combo box to input
         self.command_combo.currentTextChanged.connect(self.update_command_input)
-        
+
         input_layout.addWidget(self.command_input)
         input_layout.addWidget(send_button)
-        
+
         command_layout.addWidget(self.command_combo)
         command_layout.addLayout(input_layout)
         command_group.setLayout(command_layout)
-        
+
         left_panel.addWidget(command_group)
 
         # Add left panel to content
@@ -266,7 +266,7 @@ class LedControl(QMainWindow):
         # Add LED visualization
         visual_group = QGroupBox("LED Visualization")
         visual_layout = QHBoxLayout()
-        
+
         for color in ["Red", "Blue", "Green"]:
             led_widget = QFrame()
             led_widget.setFixedSize(50, 50)
@@ -278,7 +278,7 @@ class LedControl(QMainWindow):
                 }}
             """)
             visual_layout.addWidget(led_widget)
-        
+
         visual_group.setLayout(visual_layout)
         main_layout.addWidget(visual_group)
 
