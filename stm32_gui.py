@@ -3,10 +3,9 @@ import serial
 import serial.tools.list_ports
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                            QHBoxLayout, QPushButton, QComboBox, QTextEdit, 
-                           QLabel, QGroupBox, QFrame, QScrollArea, QLineEdit,
-                           QGraphicsDropShadowEffect)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QPalette, QFont, QIcon, QPixmap
+                           QLabel, QGroupBox, QFrame, QScrollArea, QLineEdit)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QIcon, QPixmap
 
 class SerialThread(QThread):
     received = pyqtSignal(str)
@@ -86,7 +85,7 @@ class LedControl(QMainWindow):
             }
         """)
 
-    def load_and_resize_image(self, path, width=100, height=100):
+    def load_and_resize_image(self, path, width=100, height=150):
         pixmap = QPixmap(path)
         if pixmap.isNull():
             # If image not found, create a placeholder
@@ -98,36 +97,6 @@ class LedControl(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
-
-        # Add Pin Information Section
-        pin_info_group = QGroupBox("USART Pin Configuration")
-        pin_layout = QVBoxLayout()
-        
-        pin_info = QLabel("""
-            USART3 Pin Configuration:
-            • TX: PD8 (STM32F767 Pin)
-            • RX: PD9 (STM32F767 Pin)
-            • Baudrate: 9600
-            • Data: 8 bits
-            • Stop: 1 bit
-            • Parity: None
-        """)
-        pin_info.setStyleSheet("""
-            QLabel {
-                background-color: white;
-                padding: 10px;
-                border-radius: 5px;
-                font-family: monospace;
-                color: #333333;
-                border: 1px solid #e0e0e0;
-            }
-        """)
-        
-        pin_layout.addWidget(pin_info)
-        pin_info_group.setLayout(pin_layout)
-        
-        # Add pin info at the top of the interface
-        main_layout.addWidget(pin_info_group)
 
         # Header with logo
         header_container = QWidget()
@@ -423,51 +392,35 @@ class LedControl(QMainWindow):
                 """)
 
     def handle_received_data(self, data):
-        """Maneja los datos recibidos y actualiza la visualización solo con confirmación"""
+        """Maneja los datos recibidos y actualiza visualización basada en estado real"""
         self.console.append(f"Received: {data}")
         
-        # Mapeo de modos a estados LED
-        mode_map = {
-            '0': 'A',  # Modo 0 -> Apagar todos
-            '1': 'r',  # Modo 1 -> LED Rojo
-            '2': 'b',  # Modo 2 -> LED Azul
-            '3': 'g',  # Modo 3 -> LED Verde
-            '4': 'a'   # Modo 4 -> Todos encendidos
-        }
-
-        if data in ['0', '1', '2', '3', '4']:
-            # Convertir modo a comando LED y actualizar estado
-            led_command = mode_map[data]
-            self.set_led_state(led_command)
-        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:
-            # Comandos LED directos - actualizamos con la confirmación recibida
+        # Para modo numérico o comando LED, actualiza visualización inmediatamente
+        if data in ['0', '1', '2', '3', '4']:  # Modos
+            mode_map = {
+                '0': 'A',  # Apagar todos
+                '1': 'r',  # Rojo
+                '2': 'b',  # Azul
+                '3': 'g',  # Verde
+                '4': 'a'   # Todos encendidos
+            }
+            self.set_led_state(mode_map[data])
+        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # Comandos LED directos
             self.set_led_state(data)
-        elif data == 'P':
+        elif data == 'P':  # Botón presionado
             self.console.append("Button Pressed")
-        elif data == 'L':
+            # No actualizamos visualización aquí - esperamos el modo
+        elif data == 'L':  # Botón liberado
             self.console.append("Button Released")
-            # No actualizamos aquí, esperamos el próximo estado
+            # No actualizamos visualización aquí - esperamos el modo
 
     def send_command(self, command):
-        """Envía comandos y actualiza la visualización inmediatamente para LED Control y Mode Selection"""
+        """Envía comandos sin actualización visual - espera confirmación de STM32"""
         if self.serial_port and self.serial_port.is_open:
             try:
                 self.serial_port.write(command.encode('ascii'))
                 self.console.append(f"Sent: {command}")
-                
-                # Actualización inmediata para LED Control y Mode Selection
-                if command in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # LED Control
-                    self.set_led_state(command)
-                elif command in ['0', '1', '2', '3', '4']:  # Mode Selection
-                    mode_map = {
-                        '0': 'A',  # Apagar todos
-                        '1': 'r',  # Rojo
-                        '2': 'b',  # Azul
-                        '3': 'g',  # Verde
-                        '4': 'a'   # Todos encendidos
-                    }
-                    self.set_led_state(mode_map[command])
-                
+                # Eliminada actualización inmediata - esperamos confirmación STM32
             except Exception as e:
                 self.console.append(f"Error sending: {str(e)}")
         else:
