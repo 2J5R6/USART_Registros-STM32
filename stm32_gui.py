@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                            QHBoxLayout, QPushButton, QComboBox, QTextEdit, 
                            QLabel, QGroupBox, QFrame, QScrollArea, QLineEdit)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QColor, QPalette, QFont, QIcon, QPixmap
 
 class SerialThread(QThread):
     received = pyqtSignal(str)
@@ -85,7 +85,7 @@ class LedControl(QMainWindow):
             }
         """)
 
-    def load_and_resize_image(self, path, width=100, height=150):
+    def load_and_resize_image(self, path, width=100, height=100):
         pixmap = QPixmap(path)
         if pixmap.isNull():
             # If image not found, create a placeholder
@@ -97,6 +97,36 @@ class LedControl(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
+
+        # Add Pin Information Section
+        pin_info_group = QGroupBox("USART Pin Configuration")
+        pin_layout = QVBoxLayout()
+        
+        pin_info = QLabel("""
+            USART3 Pin Configuration:
+            • TX: PD8 (STM32F767 Pin)
+            • RX: PD9 (STM32F767 Pin)
+            • Baudrate: 9600
+            • Data: 8 bits
+            • Stop: 1 bit
+            • Parity: None
+        """)
+        pin_info.setStyleSheet("""
+            QLabel {
+                background-color: white;
+                padding: 10px;
+                border-radius: 5px;
+                font-family: monospace;
+                color: #333333;
+                border: 1px solid #e0e0e0;
+            }
+        """)
+        
+        pin_layout.addWidget(pin_info)
+        pin_info_group.setLayout(pin_layout)
+        
+        # Add pin info at the top of the interface
+        main_layout.addWidget(pin_info_group)
 
         # Header with logo
         header_container = QWidget()
@@ -357,32 +387,35 @@ class LedControl(QMainWindow):
             self.status_label.setText("Disconnected")
             self.console.append("Disconnected")
 
-    def set_led_state(self, command):
-        """Función unificada para actualizar el estado de los LEDs sin animaciones"""
-        style_colors = {
-            'red': '#ff3b30',
-            'blue': '#007aff',
-            'green': '#34c759'
-        }
+    def send_command(self, command):
+        if self.serial_port and self.serial_port.is_open:
+            try:
+                self.serial_port.write(command.encode('ascii'))
+                self.console.append(f"Sent: {command}")
+                self.update_led_visual(command)  # Actualizar visualización al enviar comando
+            except Exception as e:
+                self.console.append(f"Error sending: {str(e)}")
+        else:
+            self.console.append("Not connected to any port")
 
-        # Determinar qué LED debe encenderse según el comando
-        led_states = {
-            'r': {'red': True},
-            'R': {'red': False},
-            'g': {'green': True},
-            'G': {'green': False},
-            'b': {'blue': True},
-            'B': {'blue': False},
-            'a': {'red': True, 'blue': True, 'green': True},
-            'A': {'red': False, 'blue': False, 'green': False}
-        }
+    def update_led_visual(self, command):
+        """Actualiza la visualización de los LEDs basado en el comando recibido"""
+        if command in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:
+            color_map = {
+                'r': ('red', True),
+                'R': ('red', False),
+                'g': ('green', True),
+                'G': ('green', False),
+                'b': ('blue', True),
+                'B': ('blue', False)
+            }
 
-        if command in led_states:
-            states = led_states[command]
-            # Actualizar cada LED según su estado
-            for color, is_on in states.items():
-                style_color = style_colors[color]
+            # Manejar comandos individuales
+            if command in color_map:
+                color, is_on = color_map[command]
                 led_widget = self.led_widgets[color]
+                style_color = {"red": "#ff3b30", "blue": "#007aff", "green": "#34c759"}[color]
+                
                 led_widget.setStyleSheet(f"""
                     QFrame {{
                         background-color: {style_color if is_on else 'white'};
@@ -391,40 +424,31 @@ class LedControl(QMainWindow):
                     }}
                 """)
 
-    def handle_received_data(self, data):
-        """Maneja los datos recibidos y actualiza visualización basada en estado real"""
-        self.console.append(f"Received: {data}")
-        
-        # Para modo numérico o comando LED, actualiza visualización inmediatamente
-        if data in ['0', '1', '2', '3', '4']:  # Modos
-            mode_map = {
-                '0': 'A',  # Apagar todos
-                '1': 'r',  # Rojo
-                '2': 'b',  # Azul
-                '3': 'g',  # Verde
-                '4': 'a'   # Todos encendidos
-            }
-            self.set_led_state(mode_map[data])
-        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # Comandos LED directos
-            self.set_led_state(data)
-        elif data == 'P':  # Botón presionado
-            self.console.append("Button Pressed")
-            # No actualizamos visualización aquí - esperamos el modo
-        elif data == 'L':  # Botón liberado
-            self.console.append("Button Released")
-            # No actualizamos visualización aquí - esperamos el modo
+            # Manejar comandos "todos"
+            elif command == 'a':  # Todos encendidos
+                for color, led in self.led_widgets.items():
+                    style_color = {"red": "#ff3b30", "blue": "#007aff", "green": "#34c759"}[color]
+                    led.setStyleSheet(f"""
+                        QFrame {{
+                            background-color: {style_color};
+                            border: 2px solid {style_color};
+                            border-radius: 25px;
+                        }}
+                    """)
+            elif command == 'A':  # Todos apagados
+                for color, led in self.led_widgets.items():
+                    style_color = {"red": "#ff3b30", "blue": "#007aff", "green": "#34c759"}[color]
+                    led.setStyleSheet(f"""
+                        QFrame {{
+                            background-color: white;
+                            border: 2px solid {style_color};
+                            border-radius: 25px;
+                        }}
+                    """)
 
-    def send_command(self, command):
-        """Envía comandos sin actualización visual - espera confirmación de STM32"""
-        if self.serial_port and self.serial_port.is_open:
-            try:
-                self.serial_port.write(command.encode('ascii'))
-                self.console.append(f"Sent: {command}")
-                # Eliminada actualización inmediata - esperamos confirmación STM32
-            except Exception as e:
-                self.console.append(f"Error sending: {str(e)}")
-        else:
-            self.console.append("Not connected to any port")
+    def handle_received_data(self, data):
+        self.console.append(f"Received: {data}")
+        self.update_led_visual(data)  # Actualizar visualización al recibir datos
 
     def update_command_input(self, text):
         if " - " in text:
