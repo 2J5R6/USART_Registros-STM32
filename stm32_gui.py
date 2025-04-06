@@ -32,7 +32,6 @@ class LedControl(QMainWindow):
         self.serial_port = None
         self.serial_thread = None
         self.led_widgets = {}  # Diccionario para almacenar referencias a los LED widgets
-        self.led_animations = {}  # Para guardar las animaciones
         self.setup_styles()
         self.initUI()
 
@@ -389,73 +388,32 @@ class LedControl(QMainWindow):
             self.status_label.setText("Disconnected")
             self.console.append("Disconnected")
 
-    def send_command(self, command):
-        if self.serial_port and self.serial_port.is_open:
-            try:
-                self.serial_port.write(command.encode('ascii'))
-                self.console.append(f"Sent: {command}")
-                # Para comandos de modo, usamos la visualización específica de modo
-                if command in ['0', '1', '2', '3', '4']:
-                    self.handle_mode_visualization(command)
-                else:
-                    self.update_led_visual(command)
-            except Exception as e:
-                self.console.append(f"Error sending: {str(e)}")
-        else:
-            self.console.append("Not connected to any port")
+    def set_led_state(self, command):
+        """Función unificada para actualizar el estado de los LEDs sin animaciones"""
+        style_colors = {
+            'red': '#ff3b30',
+            'blue': '#007aff',
+            'green': '#34c759'
+        }
 
-    def create_glow_effect(self, color):
-        effect = QGraphicsDropShadowEffect()
-        effect.setBlurRadius(0)
-        effect.setColor(QColor(color))
-        effect.setOffset(0, 0)
-        return effect
+        # Determinar qué LED debe encenderse según el comando
+        led_states = {
+            'r': {'red': True},
+            'R': {'red': False},
+            'g': {'green': True},
+            'G': {'green': False},
+            'b': {'blue': True},
+            'B': {'blue': False},
+            'a': {'red': True, 'blue': True, 'green': True},
+            'A': {'red': False, 'blue': False, 'green': False}
+        }
 
-    def animate_glow(self, effect, start=0, end=20, duration=1000):
-        animation = QPropertyAnimation(effect, b"blurRadius")
-        animation.setStartValue(start)
-        animation.setEndValue(end)
-        animation.setDuration(duration)
-        animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        return animation
-
-    def update_led_visual(self, command):
-        """Actualiza la visualización de los LEDs con efecto glow"""
-        if command in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:
-            color_map = {
-                'r': ('red', True, '#ff3b30'),
-                'R': ('red', False, '#ff3b30'),
-                'g': ('green', True, '#34c759'),
-                'G': ('green', False, '#34c759'),
-                'b': ('blue', True, '#007aff'),
-                'B': ('blue', False, '#007aff')
-            }
-
-            # Manejar comandos individuales
-            if command in color_map:
-                color, is_on, style_color = color_map[command]
+        if command in led_states:
+            states = led_states[command]
+            # Actualizar cada LED según su estado
+            for color, is_on in states.items():
+                style_color = style_colors[color]
                 led_widget = self.led_widgets[color]
-                
-                # Detener animación existente si hay alguna
-                if color in self.led_animations and self.led_animations[color]:
-                    self.led_animations[color].stop()
-
-                if is_on:
-                    # Crear y aplicar efecto glow
-                    glow = self.create_glow_effect(style_color)
-                    led_widget.setGraphicsEffect(glow)
-                    
-                    # Crear y guardar la animación
-                    animation = self.animate_glow(glow)
-                    animation.setLoopCount(-1)  # Repetir infinitamente
-                    self.led_animations[color] = animation
-                    animation.start()
-                else:
-                    # Quitar efecto al apagar
-                    led_widget.setGraphicsEffect(None)
-                    self.led_animations[color] = None
-
-                # Actualizar color de fondo
                 led_widget.setStyleSheet(f"""
                     QFrame {{
                         background-color: {style_color if is_on else 'white'};
@@ -464,91 +422,56 @@ class LedControl(QMainWindow):
                     }}
                 """)
 
-            # Manejar comandos "todos"
-            elif command in ['a', 'A']:
-                for color, led in self.led_widgets.items():
-                    style_color = {"red": "#ff3b30", "blue": "#007aff", "green": "#34c759"}[color]
-                    
-                    if command == 'a':  # Encender todos
-                        glow = self.create_glow_effect(style_color)
-                        led.setGraphicsEffect(glow)
-                        animation = self.animate_glow(glow)
-                        animation.setLoopCount(-1)
-                        self.led_animations[color] = animation
-                        animation.start()
-                        led.setStyleSheet(f"""
-                            QFrame {{
-                                background-color: {style_color};
-                                border: 2px solid {style_color};
-                                border-radius: 25px;
-                            }}
-                        """)
-                    else:  # Apagar todos
-                        if color in self.led_animations and self.led_animations[color]:
-                            self.led_animations[color].stop()
-                        led.setGraphicsEffect(None)
-                        led.setStyleSheet(f"""
-                            QFrame {{
-                                background-color: white;
-                                border: 2px solid {style_color};
-                                border-radius: 25px;
-                            }}
-                        """)
-
     def handle_received_data(self, data):
+        """Maneja los datos recibidos y actualiza la visualización solo con confirmación"""
         self.console.append(f"Received: {data}")
         
-        # Manejar datos recibidos del STM32
-        if data in ['0', '1', '2', '3', '4']:  # Modos
-            self.handle_mode_visualization(data)
-        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # Comandos LED directos
-            self.update_led_visual(data)
-        elif data == 'P':  # Botón presionado
-            self.console.append("Button Pressed")
-            # No necesitamos hacer nada más aquí
-        elif data == 'L':  # Botón liberado - aquí es donde el modo cambia
-            self.console.append("Button Released")
-            # Aquí enviamos un comando para consultar el estado actual
-            if self.serial_port and self.serial_port.is_open:
-                self.serial_port.write(b's')  # 's' para solicitar estado
-        elif data.startswith("MODE:"):  # Respuesta de estado del modo
-            try:
-                mode = data.split(":")[1].strip()
-                self.handle_mode_visualization(mode)
-            except:
-                self.console.append("Error parsing mode data")
-        elif data.startswith("LED:"):  # Respuesta de estado de LEDs
-            try:
-                led_state = data.split(":")[1].strip()
-                if led_state == "RED":
-                    self.update_led_visual('r')
-                elif led_state == "BLUE":
-                    self.update_led_visual('b')
-                elif led_state == "GREEN":
-                    self.update_led_visual('g')
-                elif led_state == "ALL":
-                    self.update_led_visual('a')
-                elif led_state == "NONE":
-                    self.update_led_visual('A')
-            except:
-                self.console.append("Error parsing LED state data")
-
-    def handle_mode_visualization(self, mode):
-        """Maneja la visualización de LEDs según el modo recibido"""
-        # Primero apagamos todos los LEDs
-        self.update_led_visual('A')
-        
-        # Actualizamos según el modo
-        mode_actions = {
-            '0': 'A',  # Modo 0: Todos apagados
-            '1': 'r',  # Modo 1: LED Rojo
-            '2': 'b',  # Modo 2: LED Azul
-            '3': 'g',  # Modo 3: LED Verde
-            '4': 'a'   # Modo 4: Todos encendidos
+        # Mapeo de modos a estados LED
+        mode_map = {
+            '0': 'A',  # Modo 0 -> Apagar todos
+            '1': 'r',  # Modo 1 -> LED Rojo
+            '2': 'b',  # Modo 2 -> LED Azul
+            '3': 'g',  # Modo 3 -> LED Verde
+            '4': 'a'   # Modo 4 -> Todos encendidos
         }
-        
-        if mode in mode_actions:
-            self.update_led_visual(mode_actions[mode])
+
+        if data in ['0', '1', '2', '3', '4']:
+            # Convertir modo a comando LED y actualizar estado
+            led_command = mode_map[data]
+            self.set_led_state(led_command)
+        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:
+            # Comandos LED directos - actualizamos con la confirmación recibida
+            self.set_led_state(data)
+        elif data == 'P':
+            self.console.append("Button Pressed")
+        elif data == 'L':
+            self.console.append("Button Released")
+            # No actualizamos aquí, esperamos el próximo estado
+
+    def send_command(self, command):
+        """Envía comandos y actualiza la visualización inmediatamente para LED Control y Mode Selection"""
+        if self.serial_port and self.serial_port.is_open:
+            try:
+                self.serial_port.write(command.encode('ascii'))
+                self.console.append(f"Sent: {command}")
+                
+                # Actualización inmediata para LED Control y Mode Selection
+                if command in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # LED Control
+                    self.set_led_state(command)
+                elif command in ['0', '1', '2', '3', '4']:  # Mode Selection
+                    mode_map = {
+                        '0': 'A',  # Apagar todos
+                        '1': 'r',  # Rojo
+                        '2': 'b',  # Azul
+                        '3': 'g',  # Verde
+                        '4': 'a'   # Todos encendidos
+                    }
+                    self.set_led_state(mode_map[command])
+                
+            except Exception as e:
+                self.console.append(f"Error sending: {str(e)}")
+        else:
+            self.console.append("Not connected to any port")
 
     def update_command_input(self, text):
         if " - " in text:
