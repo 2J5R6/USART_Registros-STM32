@@ -28,7 +28,7 @@ class LedControl(QMainWindow):
         super().__init__()
         self.setWindowTitle("USART LED PYTHON GUI CONTROL")
         self.setWindowIcon(QIcon("Utils/icon.png"))
-        self.setMinimumSize(1000, 700)
+        self.setMinimumSize(1000, 800)  # Aumentado el height mínimo
         self.serial_port = None
         self.serial_thread = None
         self.led_widgets = {}  # Diccionario para almacenar referencias a los LED widgets
@@ -36,53 +36,67 @@ class LedControl(QMainWindow):
         self.initUI()
 
     def setup_styles(self):
-        # Set light theme colors
+        # Set custom fonts and theme colors
         self.setStyleSheet("""
             QMainWindow {
                 background: #f5f5f7;
+                font-family: 'Segoe UI', 'Roboto', sans-serif;
             }
             QGroupBox {
                 background-color: white;
                 border: 1px solid #e0e0e0;
                 border-radius: 8px;
-                padding: 10px;
+                padding: 15px;
                 color: #333333;
+                font-family: 'Product Sans', 'Arial', sans-serif;
                 font-weight: bold;
+                font-size: 14px;
+                letter-spacing: 0.5px;
             }
             QPushButton {
-                padding: 8px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
+                padding: 12px;  # Aumentado el padding
+                border-radius: 6px;
+                font-weight: 600;
+                min-width: 120px;  # Aumentado el ancho mínimo
+                min-height: 40px;  # Añadido alto mínimo
                 background-color: #007aff;
                 color: white;
-            }
-            QPushButton:hover {
-                background-color: #0066d6;
+                font-family: 'SF Pro Display', 'Inter', sans-serif;
+                font-size: 14px;  # Aumentado tamaño de fuente
+                letter-spacing: 0.3px;
             }
             QTextEdit {
                 background-color: white;
                 border: 1px solid #e0e0e0;
                 color: #333333;
-                font-family: 'Consolas';
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                font-size: 12px;
+                line-height: 1.4;
                 border-radius: 4px;
+                padding: 8px;
             }
             QComboBox {
-                padding: 5px;
+                padding: 8px;
                 border-radius: 4px;
                 background: white;
                 color: #333333;
                 border: 1px solid #e0e0e0;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
             }
             QLabel {
                 color: #333333;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
             }
             QLineEdit {
                 background-color: white;
                 border: 1px solid #e0e0e0;
                 border-radius: 4px;
-                padding: 5px;
+                padding: 8px;
                 color: #333333;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
             }
         """)
 
@@ -99,36 +113,6 @@ class LedControl(QMainWindow):
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
 
-        # Add Pin Information Section
-        pin_info_group = QGroupBox("USART Pin Configuration")
-        pin_layout = QVBoxLayout()
-        
-        pin_info = QLabel("""
-            USART3 Pin Configuration:
-            • TX: PD8 (STM32F767 Pin)
-            • RX: PD9 (STM32F767 Pin)
-            • Baudrate: 9600
-            • Data: 8 bits
-            • Stop: 1 bit
-            • Parity: None
-        """)
-        pin_info.setStyleSheet("""
-            QLabel {
-                background-color: white;
-                padding: 10px;
-                border-radius: 5px;
-                font-family: monospace;
-                color: #333333;
-                border: 1px solid #e0e0e0;
-            }
-        """)
-        
-        pin_layout.addWidget(pin_info)
-        pin_info_group.setLayout(pin_layout)
-        
-        # Add pin info at the top of the interface
-        main_layout.addWidget(pin_info_group)
-
         # Header with logo
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
@@ -139,16 +123,19 @@ class LedControl(QMainWindow):
         logo_label.setPixmap(logo_pixmap)
         logo_label.setStyleSheet("background: transparent;")
 
-        # Title - Now after logo
+        # Title - Now after logo with custom font
         header = QLabel("GRUPO MICROS MEC-C")
         header.setStyleSheet("""
             background: white;
-            padding: 15px;
+            padding: 20px;
             border-radius: 10px;
             color: #333333;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: bold;
+            font-family: 'Product Sans', 'Arial', sans-serif;
+            letter-spacing: 1px;
             border: 1px solid #e0e0e0;
+            text-transform: uppercase;
         """)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -159,12 +146,15 @@ class LedControl(QMainWindow):
         main_layout.addWidget(header_container)
 
         # Main content container
-        content = QHBoxLayout()
+        content = QVBoxLayout()
 
-        # Left panel - Controls
-        left_panel = QVBoxLayout()
+        # Upper controls panel - Two columns
+        upper_panel = QHBoxLayout()
 
-        # Connection group with status indicator
+        # Left column
+        left_column = QVBoxLayout()
+        
+        # Add Connection Status to left column
         connection_group = QGroupBox("Connection Status")
         conn_layout = QVBoxLayout()
 
@@ -188,9 +178,10 @@ class LedControl(QMainWindow):
         conn_layout.addLayout(status_layout)
         conn_layout.addLayout(conn_controls)
         connection_group.setLayout(conn_layout)
-        left_panel.addWidget(connection_group)
+        connection_group.setMinimumHeight(120)
+        left_column.addWidget(connection_group)
 
-        # LED Controls with improved styling
+        # Add LED Control to left column
         led_group = QGroupBox("LED Control")
         led_layout = QVBoxLayout()
 
@@ -235,9 +226,13 @@ class LedControl(QMainWindow):
         led_layout.addLayout(all_layout)
 
         led_group.setLayout(led_layout)
-        left_panel.addWidget(led_group)
+        led_group.setMinimumHeight(300)
+        left_column.addWidget(led_group)
 
-        # Mode Control with Roman numerals
+        # Right column
+        right_column = QVBoxLayout()
+
+        # Add Mode Selection to right column
         mode_group = QGroupBox("Mode Selection")
         mode_layout = QHBoxLayout()
 
@@ -251,6 +246,10 @@ class LedControl(QMainWindow):
                     background-color: {color};
                     color: white;
                     min-width: 60px;
+                    font-family: 'Times New Roman', serif;
+                    font-size: 16px;
+                    font-weight: bold;
+                    letter-spacing: 1px;
                 }}
                 QPushButton:hover {{
                     background-color: {color}99;
@@ -260,9 +259,10 @@ class LedControl(QMainWindow):
             mode_layout.addWidget(btn)
 
         mode_group.setLayout(mode_layout)
-        left_panel.addWidget(mode_group)
+        mode_group.setMinimumHeight(100)
+        right_column.addWidget(mode_group)
 
-        # Add Command Sending Section
+        # Add Send Command to right column
         command_group = QGroupBox("Send Command")
         command_layout = QVBoxLayout()
 
@@ -304,34 +304,10 @@ class LedControl(QMainWindow):
         command_layout.addWidget(self.command_combo)
         command_layout.addLayout(input_layout)
         command_group.setLayout(command_layout)
+        command_group.setMinimumHeight(200)
+        right_column.addWidget(command_group)
 
-        left_panel.addWidget(command_group)
-
-        # Add left panel to content
-        content.addLayout(left_panel, stretch=1)
-
-        # Right panel - Console
-        console_group = QGroupBox("Console Output")
-        console_layout = QVBoxLayout()
-        self.console = QTextEdit()
-        self.console.setReadOnly(True)
-        self.console.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                color: #333333;
-                border: 1px solid #e0e0e0;
-                font-family: 'Consolas';
-                border-radius: 4px;
-            }
-        """)
-        console_layout.addWidget(self.console)
-        console_group.setLayout(console_layout)
-        content.addWidget(console_group, stretch=1)
-
-        # Add content to main layout
-        main_layout.addLayout(content)
-
-        # Add LED visualization
+        # Add LED Visualization below Send Command in right column
         visual_group = QGroupBox("LED Visualization")
         visual_layout = QHBoxLayout()
 
@@ -351,11 +327,67 @@ class LedControl(QMainWindow):
                     border-radius: 25px;
                 }}
             """)
-            self.led_widgets[color.lower()] = led_widget  # Guardar referencia
+            self.led_widgets[color.lower()] = led_widget
             visual_layout.addWidget(led_widget)
 
         visual_group.setLayout(visual_layout)
-        main_layout.addWidget(visual_group)
+        visual_group.setMinimumHeight(100)
+        right_column.addWidget(visual_group)
+
+        # Add stretches to balance the columns
+        left_column.addStretch()
+        right_column.addStretch()
+
+        # Add columns to upper panel
+        upper_panel.addLayout(left_column)
+        upper_panel.addLayout(right_column)
+
+        # Add upper panel to content
+        content.addLayout(upper_panel)
+
+        # Console panel at bottom
+        console_group = QGroupBox("Console Output")
+        console_layout = QVBoxLayout()
+        self.console = QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setStyleSheet("""
+            QTextEdit {
+                background-color: white;
+                color: #333333;
+                border: 1px solid #e0e0e0;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                border-radius: 4px;
+                padding: 8px;
+                min-height: 150px;  /* Altura mínima para la consola */
+            }
+        """)
+        console_layout.addWidget(self.console)
+        console_group.setLayout(console_layout)
+        console_group.setMinimumHeight(200)
+        
+        # Add console to main content
+        content.addWidget(console_group)
+
+        # Add content to main layout
+        main_layout.addLayout(content)
+
+        # Set stretch factors
+        content.setStretch(0, 3)  # Upper panel gets more space
+        content.setStretch(1, 1)  # Console gets less space
+
+        # Set minimum width for columns to prevent squishing
+        left_widget = QWidget()
+        left_widget.setLayout(left_column)
+        left_widget.setMinimumWidth(400)
+        
+        right_widget = QWidget()
+        right_widget.setLayout(right_column)
+        right_widget.setMinimumWidth(400)
+
+        # Add spacing between elements
+        left_column.setSpacing(20)
+        right_column.setSpacing(20)
+        upper_panel.setSpacing(30)
 
     def refresh_ports(self):
         self.port_combo.clear()
