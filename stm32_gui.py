@@ -88,6 +88,34 @@ class LedControl(QMainWindow):
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
 
+        # Add Pin Information Section
+        pin_info_group = QGroupBox("USART Pin Configuration")
+        pin_layout = QVBoxLayout()
+        
+        pin_info = QLabel("""
+            USART3 Pin Configuration:
+            • TX: PD8 (STM32F767 Pin)
+            • RX: PD9 (STM32F767 Pin)
+            • Baudrate: 9600
+            • Data: 8 bits
+            • Stop: 1 bit
+            • Parity: None
+        """)
+        pin_info.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 40%);
+                padding: 10px;
+                border-radius: 5px;
+                font-family: monospace;
+            }
+        """)
+        
+        pin_layout.addWidget(pin_info)
+        pin_info_group.setLayout(pin_layout)
+        
+        # Add pin info at the top of the interface
+        main_layout.addWidget(pin_info_group)
+
         # Header with logo
         header_container = QWidget()
         header_layout = QHBoxLayout(header_container)
