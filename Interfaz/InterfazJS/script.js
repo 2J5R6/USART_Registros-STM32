@@ -534,7 +534,7 @@ async function sendCommand(input, isMultiChar = false) {
     
     // MAPEO CORRECTO DE COMANDOS A CARACTERES:
     // Para modos romanos o numéricos, enviamos el carácter correcto
-    // Lógica corregida: Envía el carácter exacto según el modo
+    // Envía el carácter exacto según el modo
     let charToSend = input;
     
     if (isMultiChar) {
