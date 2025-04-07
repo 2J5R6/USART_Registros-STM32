@@ -1,0 +1,533 @@
+import sys
+import serial
+import serial.tools.list_ports
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                           QHBoxLayout, QPushButton, QComboBox, QTextEdit, 
+                           QLabel, QGroupBox, QFrame, QScrollArea, QLineEdit,
+                           QGraphicsDropShadowEffect)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QColor, QPalette, QFont, QIcon, QPixmap
+
+class SerialThread(QThread):
+    received = pyqtSignal(str)
+
+    def __init__(self, serial_port):
+        super().__init__()
+        self.serial_port = serial_port
+        self.running = True
+
+    def run(self):
+        while self.running:
+            if self.serial_port.is_open and self.serial_port.in_waiting:
+                data = self.serial_port.read().decode('ascii')
+                self.received.emit(data)
+            self.msleep(10)
+
+class LedControl(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("USART LED PYTHON GUI CONTROL")
+        self.setWindowIcon(QIcon("Utils/icon.png"))
+        self.setMinimumSize(1000, 800)  # Aumentado el height mínimo
+        self.serial_port = None
+        self.serial_thread = None
+        self.led_widgets = {}  # Diccionario para almacenar referencias a los LED widgets
+        self.setup_styles()
+        self.initUI()
+
+    def setup_styles(self):
+        # Set custom fonts and theme colors
+        self.setStyleSheet("""
+            QMainWindow {
+                background: #f5f5f7;
+                font-family: 'Segoe UI', 'Roboto', sans-serif;
+            }
+            QGroupBox {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 15px;
+                color: #333333;
+                font-family: 'Product Sans', 'Arial', sans-serif;
+                font-weight: bold;
+                font-size: 14px;
+                letter-spacing: 0.5px;
+            }
+            QPushButton {
+                padding: 12px;  # Aumentado el padding
+                border-radius: 6px;
+                font-weight: 600;
+                min-width: 120px;  # Aumentado el ancho mínimo
+                min-height: 40px;  # Añadido alto mínimo
+                background-color: #007aff;
+                color: white;
+                font-family: 'SF Pro Display', 'Inter', sans-serif;
+                font-size: 14px;  # Aumentado tamaño de fuente
+                letter-spacing: 0.3px;
+            }
+            QTextEdit {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                color: #333333;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                font-size: 12px;
+                line-height: 1.4;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QComboBox {
+                padding: 8px;
+                border-radius: 4px;
+                background: white;
+                color: #333333;
+                border: 1px solid #e0e0e0;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
+            }
+            QLabel {
+                color: #333333;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
+            }
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 8px;
+                color: #333333;
+                font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+                font-size: 13px;
+            }
+        """)
+
+    def load_and_resize_image(self, path, width=100, height=100):
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            # If image not found, create a placeholder
+            pixmap = QPixmap(width, height)
+            pixmap.fill(Qt.GlobalColor.lightGray)
+        return pixmap.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def initUI(self):
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        main_layout = QVBoxLayout(main_widget)
+
+        # Header with logo
+        header_container = QWidget()
+        header_layout = QHBoxLayout(header_container)
+
+        # Logo - Moved to left side
+        logo_label = QLabel()
+        logo_pixmap = self.load_and_resize_image("Utils/image.png", 200, 200)
+        logo_label.setPixmap(logo_pixmap)
+        logo_label.setStyleSheet("background: transparent;")
+
+        # Title - Now after logo with custom font
+        header = QLabel("GRUPO MICROS MEC-C")
+        header.setStyleSheet("""
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            color: #333333;
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Product Sans', 'Arial', sans-serif;
+            letter-spacing: 1px;
+            border: 1px solid #e0e0e0;
+            text-transform: uppercase;
+        """)
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Changed order and alignment
+        header_layout.addWidget(logo_label, stretch=1, alignment=Qt.AlignmentFlag.AlignLeft)
+        header_layout.addWidget(header, stretch=4)
+
+        main_layout.addWidget(header_container)
+
+        # Main content container
+        content = QVBoxLayout()
+
+        # Upper controls panel - Two columns
+        upper_panel = QHBoxLayout()
+
+        # Left column
+        left_column = QVBoxLayout()
+        
+        # Add Connection Status to left column
+        connection_group = QGroupBox("Connection Status")
+        conn_layout = QVBoxLayout()
+
+        status_layout = QHBoxLayout()
+        self.status_indicator = QLabel("●")
+        self.status_indicator.setStyleSheet("color: #ff3b30; font-size: 20px;")
+        self.status_label = QLabel("Disconnected")
+        status_layout.addWidget(self.status_indicator)
+        status_layout.addWidget(self.status_label)
+
+        conn_controls = QHBoxLayout()
+        self.port_combo = QComboBox()
+        self.refresh_ports()
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.setStyleSheet("background-color: #007aff; color: white;")
+        self.connect_button.clicked.connect(self.toggle_connection)
+
+        conn_controls.addWidget(self.port_combo)
+        conn_controls.addWidget(self.connect_button)
+
+        conn_layout.addLayout(status_layout)
+        conn_layout.addLayout(conn_controls)
+        connection_group.setLayout(conn_layout)
+        connection_group.setMinimumHeight(120)
+        left_column.addWidget(connection_group)
+
+        # Add LED Control to left column
+        led_group = QGroupBox("LED Control")
+        led_layout = QVBoxLayout()
+
+        # Create LED controls with better visual style
+        led_commands = {
+            "Red": ('r', 'R'),
+            "Blue": ('b', 'B'),
+            "Green": ('g', 'G')
+        }
+
+        for color, (on_cmd, off_cmd) in led_commands.items():
+            layout = QHBoxLayout()
+            style = {"Red": "#ff3b30", "Blue": "#007aff", "Green": "#34c759"}[color]
+            
+            on_btn = QPushButton(f"{color} ON")
+            off_btn = QPushButton(f"{color} OFF")
+            
+            # Conectar los botones con sus comandos respectivos
+            on_btn.clicked.connect(lambda checked, cmd=on_cmd: self.send_command(cmd))
+            off_btn.clicked.connect(lambda checked, cmd=off_cmd: self.send_command(cmd))
+
+            on_btn.setStyleSheet(f"background-color: {style}; color: white;")
+            off_btn.setStyleSheet(f"background-color: transparent; color: {style}; border: 2px solid {style}")
+
+            layout.addWidget(on_btn)
+            layout.addWidget(off_btn)
+            led_layout.addLayout(layout)
+
+        # Add All LEDs controls
+        all_layout = QHBoxLayout()
+        all_on = QPushButton("All ON")
+        all_off = QPushButton("All OFF")
+        
+        # Conectar los botones de todos los LEDs
+        all_on.clicked.connect(lambda: self.send_command('a'))
+        all_off.clicked.connect(lambda: self.send_command('A'))
+        
+        all_on.setStyleSheet("background-color: #5856d6; color: white;")
+        all_off.setStyleSheet("background-color: transparent; color: #5856d6; border: 2px solid #5856d6")
+        all_layout.addWidget(all_on)
+        all_layout.addWidget(all_off)
+        led_layout.addLayout(all_layout)
+
+        led_group.setLayout(led_layout)
+        led_group.setMinimumHeight(300)
+        left_column.addWidget(led_group)
+
+        # Right column
+        right_column = QVBoxLayout()
+
+        # Add Mode Selection to right column
+        mode_group = QGroupBox("Mode Selection")
+        mode_layout = QHBoxLayout()
+
+        mode_labels = ["O", "I", "II", "III", "IV"]
+        mode_colors = ["#6c757d", "#ff3b30", "#007aff", "#34c759", "#ffcc00"]
+
+        for i, (label, color) in enumerate(zip(mode_labels, mode_colors)):
+            btn = QPushButton(label)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color};
+                    color: white;
+                    min-width: 60px;
+                    font-family: 'Times New Roman', serif;
+                    font-size: 16px;
+                    font-weight: bold;
+                    letter-spacing: 1px;
+                }}
+                QPushButton:hover {{
+                    background-color: {color}99;
+                }}
+            """)
+            btn.clicked.connect(lambda checked, m=i: self.send_command(str(m)))
+            mode_layout.addWidget(btn)
+
+        mode_group.setLayout(mode_layout)
+        mode_group.setMinimumHeight(100)
+        right_column.addWidget(mode_group)
+
+        # Add Send Command to right column
+        command_group = QGroupBox("Send Command")
+        command_layout = QVBoxLayout()
+
+        # Command selector combo box
+        self.command_combo = QComboBox()
+        self.command_combo.addItem("Select a command...")
+
+        # LED Control Commands
+        self.command_combo.addItem("r - Turn Red LED ON")
+        self.command_combo.addItem("R - Turn Red LED OFF")
+        self.command_combo.addItem("g - Turn Green LED ON")
+        self.command_combo.addItem("G - Turn Green LED OFF")
+        self.command_combo.addItem("b - Turn Blue LED ON")
+        self.command_combo.addItem("B - Turn Blue LED OFF")
+        self.command_combo.addItem("a - Turn All LEDs ON")
+        self.command_combo.addItem("A - Turn All LEDs OFF")
+
+        # Mode Commands
+        self.command_combo.addItem("1 - Mode 1: Red LED")
+        self.command_combo.addItem("2 - Mode 2: Blue LED")
+        self.command_combo.addItem("3 - Mode 3: Green LED")
+        self.command_combo.addItem("4 - Mode 4: All LEDs")
+        self.command_combo.addItem("0 - Mode 0: No LEDs")
+
+        # Input layout
+        input_layout = QHBoxLayout()
+        self.command_input = QLineEdit()
+        self.command_input.setPlaceholderText("Enter command...")
+        send_button = QPushButton("Send")
+        send_button.setStyleSheet("background-color: #007aff; color: white;")
+        send_button.clicked.connect(self.send_custom_command)
+
+        # Connect combo box to input
+        self.command_combo.currentTextChanged.connect(self.update_command_input)
+
+        input_layout.addWidget(self.command_input)
+        input_layout.addWidget(send_button)
+
+        command_layout.addWidget(self.command_combo)
+        command_layout.addLayout(input_layout)
+        command_group.setLayout(command_layout)
+        command_group.setMinimumHeight(200)
+        right_column.addWidget(command_group)
+
+        # Add LED Visualization below Send Command in right column
+        visual_group = QGroupBox("LED Visualization")
+        visual_layout = QHBoxLayout()
+
+        led_colors = {
+            "Red": "#ff3b30",
+            "Blue": "#007aff",
+            "Green": "#34c759"
+        }
+
+        for color, style in led_colors.items():
+            led_widget = QFrame()
+            led_widget.setFixedSize(50, 50)
+            led_widget.setStyleSheet(f"""
+                QFrame {{
+                    background-color: white;
+                    border: 2px solid {style};
+                    border-radius: 25px;
+                }}
+            """)
+            self.led_widgets[color.lower()] = led_widget
+            visual_layout.addWidget(led_widget)
+
+        visual_group.setLayout(visual_layout)
+        visual_group.setMinimumHeight(100)
+        right_column.addWidget(visual_group)
+
+        # Add stretches to balance the columns
+        left_column.addStretch()
+        right_column.addStretch()
+
+        # Add columns to upper panel
+        upper_panel.addLayout(left_column)
+        upper_panel.addLayout(right_column)
+
+        # Add upper panel to content
+        content.addLayout(upper_panel)
+
+        # Console panel at bottom
+        console_group = QGroupBox("Console Output")
+        console_layout = QVBoxLayout()
+        self.console = QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setStyleSheet("""
+            QTextEdit {
+                background-color: white;
+                color: #333333;
+                border: 1px solid #e0e0e0;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                border-radius: 4px;
+                padding: 8px;
+                min-height: 150px;  /* Altura mínima para la consola */
+            }
+        """)
+        console_layout.addWidget(self.console)
+        console_group.setLayout(console_layout)
+        console_group.setMinimumHeight(200)
+        
+        # Add console to main content
+        content.addWidget(console_group)
+
+        # Add content to main layout
+        main_layout.addLayout(content)
+
+        # Set stretch factors
+        content.setStretch(0, 3)  # Upper panel gets more space
+        content.setStretch(1, 1)  # Console gets less space
+
+        # Set minimum width for columns to prevent squishing
+        left_widget = QWidget()
+        left_widget.setLayout(left_column)
+        left_widget.setMinimumWidth(400)
+        
+        right_widget = QWidget()
+        right_widget.setLayout(right_column)
+        right_widget.setMinimumWidth(400)
+
+        # Add spacing between elements
+        left_column.setSpacing(20)
+        right_column.setSpacing(20)
+        upper_panel.setSpacing(30)
+
+    def refresh_ports(self):
+        self.port_combo.clear()
+        ports = [port.device for port in serial.tools.list_ports.comports()]
+        self.port_combo.addItems(ports)
+
+    def toggle_connection(self):
+        if self.serial_port is None or not self.serial_port.is_open:
+            try:
+                port = self.port_combo.currentText()
+                self.serial_port = serial.Serial(port, 9600, timeout=1)
+                self.serial_thread = SerialThread(self.serial_port)
+                self.serial_thread.received.connect(self.handle_received_data)
+                self.serial_thread.start()
+                self.connect_button.setText("Disconnect")
+                self.status_indicator.setStyleSheet("color: #34c759; font-size: 20px;")
+                self.status_label.setText("Connected")
+                self.console.append("Connected to " + port)
+            except Exception as e:
+                self.console.append(f"Error: {str(e)}")
+        else:
+            if self.serial_thread:
+                self.serial_thread.running = False
+                self.serial_thread.wait()
+            if self.serial_port:
+                self.serial_port.close()
+                self.serial_port = None
+            self.connect_button.setText("Connect")
+            self.status_indicator.setStyleSheet("color: #ff3b30; font-size: 20px;")
+            self.status_label.setText("Disconnected")
+            self.console.append("Disconnected")
+
+    def set_led_state(self, command):
+        """Función unificada para actualizar el estado de los LEDs sin animaciones"""
+        style_colors = {
+            'red': '#ff3b30',
+            'blue': '#007aff',
+            'green': '#34c759'
+        }
+
+        # Determinar qué LED debe encenderse según el comando
+        led_states = {
+            'r': {'red': True},
+            'R': {'red': False},
+            'g': {'green': True},
+            'G': {'green': False},
+            'b': {'blue': True},
+            'B': {'blue': False},
+            'a': {'red': True, 'blue': True, 'green': True},
+            'A': {'red': False, 'blue': False, 'green': False}
+        }
+
+        if command in led_states:
+            states = led_states[command]
+            # Actualizar cada LED según su estado
+            for color, is_on in states.items():
+                style_color = style_colors[color]
+                led_widget = self.led_widgets[color]
+                led_widget.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {style_color if is_on else 'white'};
+                        border: 2px solid {style_color};
+                        border-radius: 25px;
+                    }}
+                """)
+
+    def handle_received_data(self, data):
+        """Maneja los datos recibidos y actualiza la visualización solo con confirmación"""
+        self.console.append(f"Received: {data}")
+        
+        # Mapeo de modos a estados LED
+        mode_map = {
+            '0': 'A',  # Modo 0 -> Apagar todos
+            '1': 'r',  # Modo 1 -> LED Rojo
+            '2': 'b',  # Modo 2 -> LED Azul
+            '3': 'g',  # Modo 3 -> LED Verde
+            '4': 'a'   # Modo 4 -> Todos encendidos
+        }
+
+        if data in ['0', '1', '2', '3', '4']:
+            # Convertir modo a comando LED y actualizar estado
+            led_command = mode_map[data]
+            self.set_led_state(led_command)
+        elif data in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:
+            # Comandos LED directos - actualizamos con la confirmación recibida
+            self.set_led_state(data)
+        elif data == 'P':
+            self.console.append("Button Pressed")
+        elif data == 'L':
+            self.console.append("Button Released")
+            # No actualizamos aquí, esperamos el próximo estado
+
+    def send_command(self, command):
+        """Envía comandos y actualiza la visualización inmediatamente para LED Control y Mode Selection"""
+        if self.serial_port and self.serial_port.is_open:
+            try:
+                self.serial_port.write(command.encode('ascii'))
+                self.console.append(f"Sent: {command}")
+                
+                # Actualización inmediata para LED Control y Mode Selection
+                if command in ['r', 'R', 'g', 'G', 'b', 'B', 'a', 'A']:  # LED Control
+                    self.set_led_state(command)
+                elif command in ['0', '1', '2', '3', '4']:  # Mode Selection
+                    mode_map = {
+                        '0': 'A',  # Apagar todos
+                        '1': 'r',  # Rojo
+                        '2': 'b',  # Azul
+                        '3': 'g',  # Verde
+                        '4': 'a'   # Todos encendidos
+                    }
+                    self.set_led_state(mode_map[command])
+                
+            except Exception as e:
+                self.console.append(f"Error sending: {str(e)}")
+        else:
+            self.console.append("Not connected to any port")
+
+    def update_command_input(self, text):
+        if " - " in text:
+            command = text.split(" - ")[0].strip()
+            self.command_input.setText(command)
+
+    def send_custom_command(self):
+        command = self.command_input.text().strip()
+        if command:
+            self.send_command(command)
+            self.command_input.clear()
+        else:
+            self.console.append("Please enter a command")
+
+    def closeEvent(self, event):
+        if self.serial_thread:
+            self.serial_thread.running = False
+            self.serial_thread.wait()
+        if self.serial_port and self.serial_port.is_open:
+            self.serial_port.close()
+        event.accept()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = LedControl()
+    window.show()
+    sys.exit(app.exec())
